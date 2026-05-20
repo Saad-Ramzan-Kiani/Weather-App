@@ -9,6 +9,9 @@
 <title>Weather App</title>
 </head>
  <body>
+   <style>
+
+   </style>
 
    <h1>Weather App </h1>
 
@@ -20,19 +23,13 @@
 
 <script> 
 const weatherBtn = document.getElementById("weatherBtn");
-
 weatherBtn.addEventListener("click", () => {
-
     if (navigator.geolocation) {
 
         navigator.geolocation.getCurrentPosition(success, error);
-
     } else {
-
         alert("Geolocation not supported");
-
     }
-
 });
 
 function success(position) {
@@ -43,6 +40,7 @@ function success(position) {
     console.log(latitude);
     console.log(longitude);
 
+    getWeather(latitude, longitude);
 }
 
 function error() {
@@ -58,6 +56,49 @@ const weatherApi = {
     baseUrl: 'https://api.openweathermap.org/data/2.5/weather'
 
 };
+
+async function getWeather(lat, lon) {
+
+    const url =
+`${weatherApi.baseUrl}?lat=${lat}&lon=${lon}&appid=${weatherApi.key}&units=metric`;
+
+    try {
+
+        const response = await fetch(url);
+
+        const data = await response.json();
+
+        console.log(data);
+
+        displayWeather(data);
+
+    } catch (err) {
+
+        console.log(err);
+
+    }
+
+}
+
+function displayWeather(data) {
+
+    const weatherResult =
+        document.getElementById("weatherResult");
+
+    weatherResult.innerHTML = `
+
+        <div class="card mt-4 p-3">
+
+            <h2>${data.name}</h2>
+
+            <h1>${data.main.temp} °C</h1>
+
+            <p>${data.weather[0].description}</p>
+
+        </div>
+
+    `;
+}
 </script>
 
    </body>
