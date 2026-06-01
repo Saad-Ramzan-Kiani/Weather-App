@@ -1,87 +1,300 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
- <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
- 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<title>Weather App</title>
-</head>
- <body>
-   <style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather App</title>
 
-   </style>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-   <h1>Weather App </h1>
-
-   <button id="weatherBtn" class="btn btn-primary">
-    Get Weather
-</button>
-
-<div id="weatherResult"></div>
-
-<script> 
-const weatherBtn = document.getElementById("weatherBtn");
-weatherBtn.addEventListener("click", () => {
-    if (navigator.geolocation) {
-
-        navigator.geolocation.getCurrentPosition(success, error);
-    } else {
-        alert("Geolocation not supported");
+  <style>
+    body {
+      background: #0f172a;
+      color: white;
+      font-family: Arial, sans-serif;
+      padding: 30px;
     }
-});
+    h1 { text-align: center; margin-bottom: 20px; }
+    .main-box { max-width: 500px; margin: auto; }
+    .weather-card {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    .weather-card h2 { margin-bottom: 10px; }
+    .weather-card p { margin: 5px 0; }
+    .btns { display: flex; gap: 10px; margin-bottom: 20px; }
+    input { margin-bottom: 10px; }
+    canvas {
+      margin-top: 20px;
+      background: white;
+      border-radius: 10px;
+      padding: 10px;
+    }
+    #loader { display: none; text-align: center; margin-top: 20px; }
 
-function success(position) {
-    const latitude = position.coords.latitude;
-    const longitude = position.coords.longitude;
-    console.log(latitude);
-    console.log(longitude);
-    getWeather(latitude, longitude);
-}
+    .history-box {
+      background: #1e293b;
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    .history-box h5 {
+      margin-bottom: 12px;
+      color: #94a3b8;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .history-item:hover { background: #1d4ed8; }
+    .history-item .coords { font-size: 13px; color: #cbd5e1; }
+    .history-item .name { font-size: 14px; font-weight: bold; }
+    .history-item .del-btn {
+      background: none;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0 4px;
+    }
+    .no-history { color: #475569; font-size: 13px; text-align: center; padding: 10px 0; }
+    .clear-all-btn {
+      font-size: 12px;
+      color: #ef4444;
+      background: none;
+      border: none;
+      cursor: pointer;
+      float: right;
+      margin-top: -30px;
+    }
+  </style>
+</head>
 
-function error() {
-    alert("Location access denied");
-}
+<body>
+<div class="main-box">
+
+  <h1><i class="fa-solid fa-cloud"></i> Weather App</h1>
+
+  <div class="btns">
+    <button class="btn btn-primary w-100" onclick="getLocationWeather()">
+      <i class="fa-solid fa-location-dot"></i> My Location
+    </button>
+  </div>
+
+  <div class="card p-3 bg-dark text-white">
+    <input type="number" id="latInput" class="form-control" placeholder="Enter Latitude">
+    <input type="number" id="lonInput" class="form-control" placeholder="Enter Longitude">
+    <button class="btn btn-info mt-2" onclick="searchWeather()">Search Weather</button>
+  </div>
+
+  <div id="loader">Loading weather...</div>
+  <div id="weatherResult"></div>
+
+  <div class="history-box" id="historyBox">
+    <h5><i class="fa-solid fa-clock-rotate-left"></i> Saved Locations</h5>
+    <button class="clear-all-btn" onclick="clearAllHistory()">Clear All</button>
+    <div id="historyList"></div>
+  </div>
+
+</div>
+
+<script>
+
 
 const weatherApi = {
-    key: '4eb3703790b356562054106543b748b2',
-    baseUrl: 'https://api.openweathermap.org/data/2.5/weather'
+  key: "4eb3703790b356562054106543b748b2",
+  baseUrl: "https://api.openweathermap.org/data/2.5/weather"
 };
 
+let myChart;
+
+function getHistory() {
+  const data = localStorage.getItem("weatherHistory");
+  return data ? JSON.parse(data) : [];
+}
+
+function saveHistory(history) {
+  localStorage.setItem("weatherHistory", JSON.stringify(history));
+}
+
+function addToHistory(lat, lon, cityName, country) {
+  let history = getHistory();
+
+  history = history.filter(item => !(
+    parseFloat(item.lat).toFixed(2) === parseFloat(lat).toFixed(2) &&
+    parseFloat(item.lon).toFixed(2) === parseFloat(lon).toFixed(2)
+  ));
+
+  history.unshift({
+    lat: parseFloat(lat).toFixed(4),
+    lon: parseFloat(lon).toFixed(4),
+    name: cityName + ", " + country,
+    time: new Date().toLocaleString()
+  });
+
+  if (history.length > 5) history = history.slice(0, 5);
+
+  saveHistory(history);
+  renderHistory();
+}
+
+function deleteFromHistory(index) {
+  let history = getHistory();
+  history.splice(index, 1);
+  saveHistory(history);
+  renderHistory();
+}
+
+function clearAllHistory() {
+  localStorage.removeItem("weatherHistory");
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = getHistory();
+  const listEl = document.getElementById("historyList");
+
+  if (history.length === 0) {
+    listEl.innerHTML = `<div class="no-history">No saved locations yet</div>`;
+    return;
+  }
+
+  listEl.innerHTML = history.map((item, index) => `
+    <div class="history-item" onclick="loadFromHistory(${item.lat}, ${item.lon})">
+      <div>
+        <div class="name"><i class="fa-solid fa-map-pin"></i> ${item.name}</div>
+        <div class="coords">Lat: ${item.lat} | Lon: ${item.lon}</div>
+        <div class="coords" style="font-size:11px; color:#64748b">${item.time}</div>
+      </div>
+      <button class="del-btn" onclick="event.stopPropagation(); deleteFromHistory(${index})">
+        <i class="fa-solid fa-trash"></i>
+      </button>
+    </div>
+  `).join("");
+}
+
+// Load a saved location into inputs and fetch weather
+function loadFromHistory(lat, lon) {
+  document.getElementById("latInput").value = lat;
+  document.getElementById("lonInput").value = lon;
+  getWeather(lat, lon);
+}
+
+function getLocationWeather() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      function(position) {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        getWeather(lat, lon);
+      },
+      function() { alert("Location permission denied"); }
+    );
+  } else {
+    alert("Geolocation not supported");
+  }
+}
+
+function searchWeather() {
+  const lat = document.getElementById("latInput").value;
+  const lon = document.getElementById("lonInput").value;
+  if (lat === "" || lon === "") {
+    alert("Enter latitude and longitude");
+    return;
+  }
+  getWeather(lat, lon);
+}
+
 async function getWeather(lat, lon) {
-//     const url =
-// `${weatherApi.baseUrl}?lat=${lat}&lon=${lon}&appid=${weatherApi.key}&units=metric&lang=ur&cnt=5`;
+  document.getElementById("loader").style.display = "block";
 
-const url = weatherApi.baseUrl + "?lat=" + lat + "&lon=" + lon + "&appid=" + weatherApi.key + "&units=metric";
-    try {
-        const response = await fetch(url);
-        const data = await response.json();
-        console.log(data);
-        displayWeather(data);
-    } catch (err) {
-        console.log(err);
+  const url =
+    weatherApi.baseUrl +
+    "?lat=" + lat +
+    "&lon=" + lon +
+    "&appid=" + weatherApi.key +
+    "&units=metric";
+
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    document.getElementById("loader").style.display = "none";
+    showWeather(data);
+
+    addToHistory(lat, lon, data.name, data.sys.country);
+
+  } catch (error) {
+    document.getElementById("loader").style.display = "none";
+    console.log(error);
+    alert("Something went wrong");
+  }
+//   console.log(data);
+}
+
+function showWeather(data) {
+  const weatherBox = document.getElementById("weatherResult");
+
+  weatherBox.innerHTML = `
+    <div class="weather-card">
+      <h2>${data.name}</h2>
+      <h1>${Math.round(data.main.temp)} °C</h1>
+      <p>${data.weather[0].description}</p>
+      <p>Country: ${data.sys.country}</p>
+      <p>Max Temp: ${data.main.temp_max} °C</p>
+      <p>Min Temp: ${data.main.temp_min} °C</p>
+      <p>Humidity: ${data.main.humidity}%</p>
+      <p>Wind Speed: ${data.wind.speed} m/s</p>
+      <canvas id="weatherChart"></canvas>
+    </div>
+  `;
+
+  makeChart(data);
+}
+// console.log(data);
+function makeChart(data) {
+  const ctx = document.getElementById("weatherChart");
+  if (myChart) myChart.destroy();
+
+  myChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: ["Temp", "Max Temp", "Min Temp", "Humidity", "Wind"],
+      datasets: [{
+        label: "Weather Data",
+        data: [
+          data.main.temp,
+          data.main.temp_max,
+          data.main.temp_min,
+          data.main.humidity,
+          data.wind.speed
+        ],
+        backgroundColor: ["skyblue", "orange", "lightgreen", "pink", "violet"],
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true } }
     }
+  });
 }
 
-function displayWeather(data) {
-    const weatherResult =
-        document.getElementById("weatherResult");
-    weatherResult.innerHTML = `
-        <div class="card mt-4 p-3">
-            <h2>${data.name}</h2>
-            <h1>${data.main.temp} °C</h1>
-            <h1>${data.sys.country} </h1>
-               <h1>${data.main.temp_max} °C</h1>
-                  <h1>${data.main.temp_min} °C</h1>
-            <p>${data.weather[0].description}</p>
-             <p>Humidity: ${data.main.humidity}%</p>
-            <p>Wind Speed: ${data.wind.speed} m/s</p>
-            console.log(data);
-        </div>
-    `;
-}
+window.onload = function() {
+  renderHistory(); 
+};
 </script>
-
-   </body>
+</body>
 </html>
